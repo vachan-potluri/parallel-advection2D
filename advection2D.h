@@ -115,6 +115,8 @@ class advection2D
 
         // class variables
         MPI_Comm mpi_communicator;
+        IndexSet locally_owned_dofs; // dofs owned by this process
+        IndexSet locally_relevant_dofs; // dofs owned and ghost dofs for this process
 
         parallel::distributed::Triangulation<2> triang;
         const MappingQ1<2> mapping;
@@ -124,17 +126,16 @@ class advection2D
         FE_DGQ<2> fe;
         FE_FaceQ<2> fe_face; // face finite element
         DoFHandler<2> dof_handler;
-        std::vector<Point<2>> dof_locations; // all dof locations
+        std::map<uint, Point<2>> dof_locations; // all relevant dof locations of this process
 
-        // solution has to be global to enable results output, a local solution cannot used to
-        // output results
-        Vector<double> g_solution; // global solution
-        Vector<double> gold_solution; // global old solution
-        std::vector<Vector<double>> l_rhs; // local rhs of every cell
+        // both solution and rhs have to be global nad must store ghost cell data too
+        LA::MPI::Vector g_solution; // global solution
+        LA::MPI::Vector gold_solution; // global old solution
+        LA::MPI::Vector g_rhs; // global rhs
 
         // stiffness and lifting matrices
-        std::vector<FullMatrix<double>> stiff_mats;
-        std::vector< std::array<FullMatrix<double>, GeometryInfo<2>::faces_per_cell> > lift_mats;
+        std::map<uint, FullMatrix<double>> stiff_mats;
+        std::map<uint, std::array<FullMatrix<double>, GeometryInfo<2>::faces_per_cell> > lift_mats;
 
         ConditionalOStream pcout; // parallel cout
 
