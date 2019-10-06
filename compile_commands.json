@@ -1,0 +1,32 @@
+[
+{
+  "directory": "/home/vachan/Documents/Work/parallel-advection2D",
+  "command": "/usr/bin/c++  -DBOOST_NO_AUTO_PTR -DDEBUG -DTBB_DO_ASSERT=1 -DTBB_USE_DEBUG -isystem /home/vachan/bin/dealii/include -isystem /home/vachan/bin/dealii/include/deal.II/bundled -isystem /usr/local/include -isystem /home/vachan/petsc-3.11.1/include -isystem /home/vachan/petsc-3.11.1/arch-linux2-c-debug/include -isystem /home/vachan/p4est-2.2/FAST/include    -pedantic -fPIC -Wall -Wextra -Woverloaded-virtual -Wpointer-arith -Wsign-compare -Wswitch -Wsynth -Wwrite-strings -Wno-placement-new -Wno-literal-suffix -Wno-psabi -fopenmp-simd -std=c++17 -march=native -pthread -Wno-parentheses -Wno-unused-local-typedefs -O0 -ggdb -Wa,--compress-debug-sections -o CMakeFiles/advection2D.dir/num_fluxes.cc.o -c /home/vachan/Documents/Work/parallel-advection2D/num_fluxes.cc",
+  "file": "/home/vachan/Documents/Work/parallel-advection2D/num_fluxes.cc"
+},
+{
+  "directory": "/home/vachan/Documents/Work/parallel-advection2D",
+  "command": "/usr/bin/c++  -DBOOST_NO_AUTO_PTR -DDEBUG -DTBB_DO_ASSERT=1 -DTBB_USE_DEBUG -isystem /home/vachan/bin/dealii/include -isystem /home/vachan/bin/dealii/include/deal.II/bundled -isystem /usr/local/include -isystem /home/vachan/petsc-3.11.1/include -isystem /home/vachan/petsc-3.11.1/arch-linux2-c-debug/include -isystem /home/vachan/p4est-2.2/FAST/include    -pedantic -fPIC -Wall -Wextra -Woverloaded-virtual -Wpointer-arith -Wsign-compare -Wswitch -Wsynth -Wwrite-strings -Wno-placement-new -Wno-literal-suffix -Wno-psabi -fopenmp-simd -std=c++17 -march=native -pthread -Wno-parentheses -Wno-unused-local-typedefs -O0 -ggdb -Wa,--compress-debug-sections -o CMakeFiles/advection2D.dir/wind.cc.o -c /home/vachan/Documents/Work/parallel-advection2D/wind.cc",
+  "file": "/home/vachan/Documents/Work/parallel-advection2D/wind.cc"
+},
+{
+  "directory": "/home/vachan/Documents/Work/parallel-advection2D",
+  "command": "/usr/bin/c++  -DBOOST_NO_AUTO_PTR -DDEBUG -DTBB_DO_ASSERT=1 -DTBB_USE_DEBUG -isystem /home/vachan/bin/dealii/include -isystem /home/vachan/bin/dealii/include/deal.II/bundled -isystem /usr/local/include -isystem /home/vachan/petsc-3.11.1/include -isystem /home/vachan/petsc-3.11.1/arch-linux2-c-debug/include -isystem /home/vachan/p4est-2.2/FAST/include    -pedantic -fPIC -Wall -Wextra -Woverloaded-virtual -Wpointer-arith -Wsign-compare -Wswitch -Wsynth -Wwrite-strings -Wno-placement-new -Wno-literal-suffix -Wno-psabi -fopenmp-simd -std=c++17 -march=native -pthread -Wno-parentheses -Wno-unused-local-typedefs -O0 -ggdb -Wa,--compress-debug-sections -o CMakeFiles/advection2D.dir/IC.cc.o -c /home/vachan/Documents/Work/parallel-advection2D/IC.cc",
+  "file": "/home/vachan/Documents/Work/parallel-advection2D/IC.cc"
+},
+{
+  "directory": "/home/vachan/Documents/Work/parallel-advection2D",
+  "command": "/usr/bin/c++  -DBOOST_NO_AUTO_PTR -DDEBUG -DTBB_DO_ASSERT=1 -DTBB_USE_DEBUG -isystem /home/vachan/bin/dealii/include -isystem /home/vachan/bin/dealii/include/deal.II/bundled -isystem /usr/local/include -isystem /home/vachan/petsc-3.11.1/include -isystem /home/vachan/petsc-3.11.1/arch-linux2-c-debug/include -isystem /home/vachan/p4est-2.2/FAST/include    -pedantic -fPIC -Wall -Wextra -Woverloaded-virtual -Wpointer-arith -Wsign-compare -Wswitch -Wsynth -Wwrite-strings -Wno-placement-new -Wno-literal-suffix -Wno-psabi -fopenmp-simd -std=c++17 -march=native -pthread -Wno-parentheses -Wno-unused-local-typedefs -O0 -ggdb -Wa,--compress-debug-sections -o CMakeFiles/advection2D.dir/BCs.cc.o -c /home/vachan/Documents/Work/parallel-advection2D/BCs.cc",
+  "file": "/home/vachan/Documents/Work/parallel-advection2D/BCs.cc"
+},
+{
+  "directory": "/home/vachan/Documents/Work/parallel-advection2D",
+  "command": "/usr/bin/c++  -DBOOST_NO_AUTO_PTR -DDEBUG -DTBB_DO_ASSERT=1 -DTBB_USE_DEBUG -isystem /home/vachan/bin/dealii/include -isystem /home/vachan/bin/dealii/include/deal.II/bundled -isystem /usr/local/include -isystem /home/vachan/petsc-3.11.1/include -isystem /home/vachan/petsc-3.11.1/arch-linux2-c-debug/include -isystem /home/vachan/p4est-2.2/FAST/include    -pedantic -fPIC -Wall -Wextra -Woverloaded-virtual -Wpointer-arith -Wsign-compare -Wswitch -Wsynth -Wwrite-strings -Wno-placement-new -Wno-literal-suffix -Wno-psabi -fopenmp-simd -std=c++17 -march=native -pthread -Wno-parentheses -Wno-unused-local-typedefs -O0 -ggdb -Wa,--compress-debug-sections -o CMakeFiles/advection2D.dir/advection2D.cc.o -c /home/vachan/Documents/Work/parallel-advection2D/advection2D.cc",
+  "file": "/home/vachan/Documents/Work/parallel-advection2D/advection2D.cc"
+},
+{
+  "directory": "/home/vachan/Documents/Work/parallel-advection2D",
+  "command": "/usr/bin/c++  -DBOOST_NO_AUTO_PTR -DDEBUG -DTBB_DO_ASSERT=1 -DTBB_USE_DEBUG -isystem /home/vachan/bin/dealii/include -isystem /home/vachan/bin/dealii/include/deal.II/bundled -isystem /usr/local/include -isystem /home/vachan/petsc-3.11.1/include -isystem /home/vachan/petsc-3.11.1/arch-linux2-c-debug/include -isystem /home/vachan/p4est-2.2/FAST/include    -pedantic -fPIC -Wall -Wextra -Woverloaded-virtual -Wpointer-arith -Wsign-compare -Wswitch -Wsynth -Wwrite-strings -Wno-placement-new -Wno-literal-suffix -Wno-psabi -fopenmp-simd -std=c++17 -march=native -pthread -Wno-parentheses -Wno-unused-local-typedefs -O0 -ggdb -Wa,--compress-debug-sections -o CMakeFiles/advection2D.dir/main.cc.o -c /home/vachan/Documents/Work/parallel-advection2D/main.cc",
+  "file": "/home/vachan/Documents/Work/parallel-advection2D/main.cc"
+}
+]
