@@ -60,6 +60,12 @@ void advection2D::setup_system()
  * Calculating mass and differentiation matrices is as usual. Each face will have its own flux
  * matrix. The containers advection2D::face_first_dof and advection2D::face_dof_increment are used
  * to map face-local dof index to cell dof index.
+ * 
+ * @note The matrices for ghost cells are also computed and stored. This is required for update.
+ * Also, all cell indexing for an individual mpi process is local. The cell's index and its
+ * neighbors indices are locally defined.
+ * @todo See if there is another approach. For example, if the numerical flux is stored as a global
+ * vector, then every mpi process can update without having to know ghost cell matrices.
  */
 void advection2D::assemble_system()
 {
@@ -80,7 +86,8 @@ void advection2D::assemble_system()
         uint i, j, i_face, j_face, qid, face_id;
 
         for(auto &cell: dof_handler.active_cell_iterators()){
-                if(!cell->is_locally_owned()) continue; // skip if cell is not owned by this mpi proc
+                // skip if cell is not relevant to this mpi proc (owned + ghost)
+                if(!(cell->is_locally_owned() || cell->is_ghost())) continue;
 
                 std::cout << "Processor " << Utilities::MPI::this_mpi_process(mpi_communicator) <<
                 " Cell " << cell->index() << std::endl;
