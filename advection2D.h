@@ -31,6 +31,13 @@
 #include <deal.II/numerics/vector_tools.h>
 #include <deal.II/numerics/data_out.h>
 
+// for parallel computing
+#include <deal.II/base/utilities.h>
+#include <deal.II/base/conditional_ostream.h>
+#include <deal.II/base/index_set.h>
+#include <deal.II/distributed/tria.h>
+#include <deal.II/lac/generic_linear_algebra.h>
+
 #include <fstream>
 #include <functional>
 
@@ -41,6 +48,11 @@
 #include "IC.h"
 #include "BCs.h"
 #include "num_fluxes.h"
+
+namespace LA
+{
+        using namespace ::LinearAlgebraPETSc;
+} // linear algebra namespace
 
 #ifndef advection2D_h
 #define advection2D_h
@@ -102,7 +114,9 @@ class advection2D
         void output(const std::string &filename) const;
 
         // class variables
-        Triangulation<2> triang;
+        MPI_Comm mpi_communicator;
+
+        parallel::distributed::Triangulation<2> triang;
         const MappingQ1<2> mapping;
 
         // By default, fe assumes all dofs to be inside cell. Thus, fe.dofs_per_face will return 0.
@@ -121,6 +135,8 @@ class advection2D
         // stiffness and lifting matrices
         std::vector<FullMatrix<double>> stiff_mats;
         std::vector< std::array<FullMatrix<double>, GeometryInfo<2>::faces_per_cell> > lift_mats;
+
+        ConditionalOStream pcout; // parallel cout
 
 
 
