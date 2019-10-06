@@ -1,0 +1,12 @@
+Makefile
+CMakeCache.txt
+cmake_install.cmake
+
+.project
+.cproject
+
+# executable
+advection2D
+
+# result files
+*.vtk*
