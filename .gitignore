@@ -10,3 +10,5 @@ advection2D
 
 # result files
 *.vtk*
+*.vtu*
+*.pvtu*
