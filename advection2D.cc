@@ -25,8 +25,34 @@ advection2D::advection2D(const uint order)
         triang(mpi_communicator), dof_handler(triang),
         face_first_dof{0, order, 0, (order+1)*order},
         face_dof_increment{order+1, order+1, 1, 1},
-        pcout(std::cout, (Utilities::MPI::this_mpi_process==0))
+        pcout(std::cout, (Utilities::MPI::this_mpi_process(mpi_communicator)==0))
 {}
+
+/**
+ * @brief Sets up the system
+ * 
+ * 1. Mesh is setup and stored in advection2D::triang
+ * 2. advection2D::dof_handler is linked to advection2D::fe
+ * 3. advection2D::g_solution and advection2D::l_rhs sizes are set
+ * 4. Sizes of advection2D::stiff_mats, advection2D::lift_mats and advection2D::l_rhs containers are
+ * set
+ */
+void advection2D::setup_system()
+{
+        pcout << "Setting up the system" << std::endl;
+        // initialise the triang variable
+        GridGenerator::hyper_cube(triang);
+        triang.refine_global(5); // partition happens automatically
+
+        dof_handler.distribute_dofs(fe);
+        locally_owned_dofs = dof_handler.locally_owned_dofs();
+        DoFTools::extract_locally_relevant_dofs(dof_handler, locally_relevant_dofs);
+        DoFTools::map_dofs_to_support_points(mapping, dof_handler, dof_locations);
+
+        g_solution.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);
+        gold_solution.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);
+        g_rhs.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);
+}
 
 
 
@@ -39,8 +65,8 @@ void advection2D::test()
         // deallog << "---------------------------------------------" << std::endl;
         // deallog << "Testing advection2D class" << std::endl;
         // deallog << "---------------------------------------------" << std::endl;
-        // advection2D problem(1);
-        // problem.setup_system();
+        advection2D problem(1);
+        problem.setup_system();
         // problem.assemble_system();
         // problem.print_matrices();
         // problem.set_IC();
