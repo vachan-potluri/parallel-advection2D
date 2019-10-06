@@ -59,7 +59,8 @@ namespace LA
 
 /**
  * @class advection2D
- * @brief A class for 2D linear advection equation
+ * @brief A class for 2D linear advection equation. This class is for running parallelly, mesh and
+ * dof handler are also distributed in memory.
  * 
  * The problem to be solved is
  * @f[ \frac{\partial \phi}{\partial t} + \nabla \cdot (\phi \vec{v}) = 0 @f]
@@ -86,11 +87,6 @@ namespace LA
  * different faces cannot be clubbed into a single lifting matrix because two numerical fluxes act
  * at every cell vertex. Accordingly, 4 different numerical flux vectors will multiply these 4
  * lifting matrices. See ME757 material "Notes14.pdf"
- * 
- * @remark The code is working fine, but the problem considered requires a limiter.
- * 
- * @todo Add function for calculating stable time step
- * @todo Add limiter functionality
  */
 
 class advection2D
@@ -115,8 +111,8 @@ class advection2D
 
         // class variables
         MPI_Comm mpi_communicator;
-        IndexSet locally_owned_dofs; // dofs owned by this process
-        IndexSet locally_relevant_dofs; // dofs owned and ghost dofs for this process
+        IndexSet locally_owned_dofs; // dofs owned by this mpi process
+        IndexSet locally_relevant_dofs; // dofs owned and ghost dofs for this mpi process
 
         parallel::distributed::Triangulation<2> triang;
         const MappingQ1<2> mapping;
@@ -126,9 +122,9 @@ class advection2D
         FE_DGQ<2> fe;
         FE_FaceQ<2> fe_face; // face finite element
         DoFHandler<2> dof_handler;
-        std::map<uint, Point<2>> dof_locations; // all relevant dof locations of this process
+        std::map<uint, Point<2>> dof_locations; // all 'relevant' dof locations of this process
 
-        // both solution and rhs have to be global nad must store ghost cell data too
+        // both solution and rhs have to be global and must store ghost cell data too
         LA::MPI::Vector g_solution; // global solution
         LA::MPI::Vector gold_solution; // global old solution
         LA::MPI::Vector g_rhs; // global rhs
