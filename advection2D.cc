@@ -131,6 +131,43 @@ void advection2D::assemble_system()
         } // loop over locally owned cells
 }
 
+/**
+ * @brief Outputs the global solution in pvtu format taking the filename as argument
+ * 
+ * @precondition @p filename must not have extension. Checks in this regard are not done
+ */
+void advection2D::output(const std::string &filename) const
+{
+        DataOut<2> data_out;
+        data_out.attach_dof_handler(dof_handler);
+        data_out.add_data_vector(g_solution, "phi");
+
+        Vector<float> subdom(triang.n_active_cells());
+        for(float &x: subdom){
+                x = triang.locally_owned_subdomain();
+        }
+        data_out.add_data_vector(subdom, "Subdomain");
+
+        data_out.build_patches();
+
+        // Inidividual process solution files
+        std::string mod_filename(filename);
+        mod_filename += "_" + Utilities::int_to_string(triang.locally_owned_subdomain(), 2) + ".vtu";
+        std::ofstream ofile(mod_filename);
+        data_out.write_vtu(ofile);
+
+        // master output file
+        if(Utilities::MPI::this_mpi_process(mpi_communicator) == 0){
+                std::vector<std::string> filenames;
+                for(uint i=0; i<Utilities::MPI::n_mpi_processes(mpi_communicator); i++){
+                        filenames.emplace_back(filename + "_" +
+                                Utilities::int_to_string(i, 2) + ".vtu");
+                }
+                std::ofstream master(filename + ".pvtu");
+                data_out.write_pvtu_record(master, filenames);
+        }
+}
+
 
 
 // # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -146,6 +183,8 @@ void advection2D::test()
         problem.setup_system();
         MPI_Barrier(MPI_COMM_WORLD);
         problem.assemble_system();
+        MPI_Barrier(MPI_COMM_WORLD);
+        problem.output("partition");
         // problem.print_matrices();
         // problem.set_IC();
         // problem.set_boundary_ids();
