@@ -8,9 +8,9 @@
 #include <iostream>
 #include <fstream>
 
-int main()
+int main(int argc, char **argv)
 {
-        deallog.depth_console(2);
+        Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
 
         printf("Hello World!\n");
         #ifdef DEBUG
