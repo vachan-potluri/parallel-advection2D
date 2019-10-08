@@ -64,8 +64,14 @@ void advection2D::setup_system()
  * @note The matrices for ghost cells are also computed and stored. This is required for update.
  * Also, all cell indexing for an individual mpi process is local. The cell's index and its
  * neighbors indices are locally defined.
+ * 
  * @todo See if there is another approach. For example, if the numerical flux is stored as a global
  * vector, then every mpi process can update without having to know ghost cell matrices.
+ * 
+ * @remark Storing matrices for ghost cells too is the best approach. The issues with above approach
+ * of storing and communicating numerical flux is that mapping from face dofs to cell dofs must be
+ * done repeatedly and the sign of the numerical flux changes from cell to cell based on how it was
+ * calculated.
  */
 void advection2D::assemble_system()
 {
@@ -89,8 +95,6 @@ void advection2D::assemble_system()
                 // skip if cell is not relevant to this mpi proc (owned + ghost)
                 if(!(cell->is_locally_owned() || cell->is_ghost())) continue;
 
-                std::cout << "Processor " << Utilities::MPI::this_mpi_process(mpi_communicator) <<
-                " Cell " << cell->index() << std::endl;
                 // stiffness matrix
                 fe_values.reinit(cell);
                 l_mass = 0;
@@ -136,6 +140,49 @@ void advection2D::assemble_system()
                         lift_mats[cell->index()][face_id] = temp;
                 }// loop over faces
         } // loop over locally owned cells
+}
+
+
+/**
+ * @brief Prints stifness and the 4 lifting matrices of 0-th element of 0-th process
+ */
+void advection2D::print_matrices() const
+{
+        pcout << "Stiffness matrix and lifting matrices of the first cell owned by " <<
+        "first mpi process" << std::endl;
+
+        if(Utilities::MPI::this_mpi_process(mpi_communicator) == 0){
+                uint row, col, face_id;
+                pcout << std::fixed << std::setprecision(6);
+
+                // find the first owned cell of this process
+                DoFHandler<2>::active_cell_iterator cell = dof_handler.begin_active();
+                for(; cell != dof_handler.end(); cell++){
+                        if(cell->is_locally_owned()) break;
+                }
+
+                // stiffness matrix
+                pcout << "Stiffness matrix" << std::endl;
+                for(row=0; row<fe.dofs_per_cell; row++){
+                        for(col=0; col<fe.dofs_per_cell; col++){
+                                // operator [] is non-const and cannot be used in a const function
+                                pcout << std::setw(12) << stiff_mats.at(cell->index())(row,col);
+                        }
+                        pcout << std::endl;
+                }
+
+                // lifting matrices
+                for(face_id=0; face_id<4; face_id++){
+                        pcout << "Lifting matrix face " << face_id << std::endl;
+                        for(row=0; row<fe.dofs_per_cell; row++){
+                                for(col=0; col<fe.dofs_per_cell; col++){
+                                        pcout << std::setw(12) <<
+                                        lift_mats.at(cell->index())[face_id](row,col);
+                                }
+                                pcout << std::endl;
+                        }
+                }
+        }
 }
 
 /**
@@ -192,7 +239,7 @@ void advection2D::test()
         problem.assemble_system();
         MPI_Barrier(MPI_COMM_WORLD);
         problem.output("partition");
-        // problem.print_matrices();
+        problem.print_matrices();
         // problem.set_IC();
         // problem.set_boundary_ids();
 
