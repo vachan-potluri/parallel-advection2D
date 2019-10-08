@@ -28,7 +28,9 @@ advection2D::advection2D(const uint order)
         face_first_dof{0, order, 0, (order+1)*order},
         face_dof_increment{order+1, order+1, 1, 1},
         pcout(std::cout, (Utilities::MPI::this_mpi_process(mpi_communicator)==0))
-{}
+{
+        MPI_Barrier(mpi_communicator);
+}
 
 /**
  * @brief Sets up the system
@@ -52,6 +54,8 @@ void advection2D::setup_system()
         g_solution.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);
         gold_solution.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);
         g_rhs.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);
+
+        MPI_Barrier(mpi_communicator);
 }
 
 /**
@@ -140,6 +144,8 @@ void advection2D::assemble_system()
                         lift_mats[cell->index()][face_id] = temp;
                 }// loop over faces
         } // loop over locally owned cells
+
+        MPI_Barrier(mpi_communicator);
 }
 
 /**
@@ -148,10 +154,51 @@ void advection2D::assemble_system()
  * Since nodal basis is being used, initial condition is easy to set. <code>interpolate</code>
  * function of VectorTools namespace is used with IC class and advection2D::g_solution.
  * See IC::value()
+ * 
+ * @note VectorTools::interpolate can only be used on vectors with no ghost cells. A temporary
+ * non-ghosted vector is used for setting IC which is then copied to advection2D::g_solution
  */
 void advection2D::set_IC()
 {
-        VectorTools::interpolate(dof_handler, IC(), g_solution);
+        // temporary solution with no ghost elements
+        LA::MPI::Vector temp_g_solution;
+        temp_g_solution.reinit(locally_owned_dofs, locally_owned_dofs, mpi_communicator);
+        VectorTools::interpolate(dof_handler, IC(), temp_g_solution);
+
+        g_solution = temp_g_solution;
+
+        // MPI_Barrier(mpi_communicator); // not required, this is a collective operation
+}
+
+/**
+ * @brief Boundary ids are set here
+ * 
+ * @f$x=0@f$ forms boundary 0 with @f$\phi@f$ value prescribed as @f$1@f$<br/>
+ * @f$y=0@f$ forms boundary 1 with @f$\phi@f$ value prescribed as @f$0@f$<br/>
+ * @f$x=1 \bigcup y=1@f$ forms boundary 2 with zero gradient
+ * @note Ghost cell approach will be used
+ * @note Boundary ids must be set strictly for appropriate faces of owned cells only
+ */
+void advection2D::set_boundary_ids()
+{
+        for(auto &cell: dof_handler.active_cell_iterators()){
+                // skip if the cell is not owned
+                if(!(cell->is_locally_owned())) continue;
+
+                for(uint face_id=0; face_id<GeometryInfo<2>::faces_per_cell; face_id++){
+                        if(cell->face(face_id)->at_boundary()){
+                                Point<2> fcenter = cell->face(face_id)->center(); // face center
+                                if(fabs(fcenter(0)) < 1e-6)
+                                        cell->face(face_id)->set_boundary_id(0);
+                                else if(fabs(fcenter(1)) < 1e-6)
+                                        cell->face(face_id)->set_boundary_id(1);
+                                else
+                                        cell->face(face_id)->set_boundary_id(2);
+                        }
+                } // loop over faces
+        } // loop over cells
+
+        MPI_Barrier(mpi_communicator);
 }
 
 
@@ -252,8 +299,8 @@ void advection2D::test()
         MPI_Barrier(MPI_COMM_WORLD);
         problem.output("partition");
         problem.print_matrices();
-        // problem.set_IC();
-        // problem.set_boundary_ids();
+        problem.set_IC();
+        problem.set_boundary_ids();
 
         // double start_time = 0.0, end_time = 0.5, time_step = 0.005;
         // uint time_counter = 0;
