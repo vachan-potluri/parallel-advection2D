@@ -126,9 +126,11 @@ class advection2D
         DoFHandler<2> dof_handler;
         std::map<uint, Point<2>> dof_locations; // all 'relevant' dof locations of this process
 
-        // both solution and rhs have to be global and must store ghost cell data too
+        // non-ghosted solution and rhs
+        // ghosted copy of old soln is only required in advection2D::update() function
         LA::MPI::Vector g_solution; // global solution
         LA::MPI::Vector gold_solution; // global old solution
+        LA::MPI::Vector gh_gold_solution; // ghosted old solution
         LA::MPI::Vector g_rhs; // global rhs
 
         // stiffness and lifting matrices
