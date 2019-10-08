@@ -162,7 +162,7 @@ void advection2D::set_IC()
 {
         // temporary solution with no ghost elements
         LA::MPI::Vector temp_g_solution;
-        temp_g_solution.reinit(locally_owned_dofs, locally_owned_dofs, mpi_communicator);
+        temp_g_solution.reinit(locally_owned_dofs, mpi_communicator);
         VectorTools::interpolate(dof_handler, IC(), temp_g_solution);
 
         g_solution = temp_g_solution;
