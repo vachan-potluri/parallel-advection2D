@@ -142,6 +142,18 @@ void advection2D::assemble_system()
         } // loop over locally owned cells
 }
 
+/**
+ * @brief Sets IC
+ * 
+ * Since nodal basis is being used, initial condition is easy to set. <code>interpolate</code>
+ * function of VectorTools namespace is used with IC class and advection2D::g_solution.
+ * See IC::value()
+ */
+void advection2D::set_IC()
+{
+        VectorTools::interpolate(dof_handler, IC(), g_solution);
+}
+
 
 /**
  * @brief Prints stifness and the 4 lifting matrices of 0-th element of 0-th process
