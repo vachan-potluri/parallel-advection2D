@@ -388,7 +388,7 @@ void advection2D::update()
                         rhs,
                         lold_solution
                 ); // rhs now has all owned face contribs and stiffness contrib
-                for(i=0; i<fe.dofs_per_cell; i++) g_rhs[dof_ids[i]] = rhs[i]; // non-ghost access
+                for(i=0; i<fe.dofs_per_cell; i++) g_rhs[dof_ids[i]] += rhs[i]; // non-ghost access
                 // set owners rhs using dof_ids
                 // set neighbors rhs and compress
         } // loop over locally owned cells (computing rhs)
