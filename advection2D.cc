@@ -201,6 +201,50 @@ void advection2D::set_boundary_ids()
         MPI_Barrier(mpi_communicator);
 }
 
+/**
+ * @brief Obtains time step based on Courant number @p co
+ * 
+ * If @f$r@f$ is the "radius" of the cell, then
+ * @f[
+ * \Delta t = \text{Co}\frac{1}{2N+1}\min\left[ \frac{r}{u}, \frac{r}{v} \right]
+ * @f]
+ */
+void advection2D::obtain_time_step(const double co)
+{
+        double radius,  // radius of cell
+                proc_min=1e6, // (factor of) time step for this mpi process
+                min, // (factor of) time step after reduction
+                temp;
+        Tensor<1,2> center_wind;
+        for(auto &cell: dof_handler.active_cell_iterators()){
+                // skip if cell is not owned by this process
+                if(!(cell->is_locally_owned())) continue;
+
+                radius = 0.5*cell->diameter();
+                center_wind = wind(cell->center());
+                temp = std::min({
+                        radius/(center_wind[0]+1e-6),
+                        radius/(center_wind[1]+1e-6)
+                });
+
+                if(temp<proc_min) proc_min = temp;
+        }
+        MPI_Barrier(mpi_communicator);
+
+        // first perform reduction (into min of 0-th process)
+        MPI_Reduce(&proc_min, &min, 1, MPI_DOUBLE, MPI_MIN, 0, mpi_communicator);
+
+        // now multiply by factor and broadcast
+        if(Utilities::MPI::this_mpi_process(mpi_communicator) == 0){
+                min *= co/(2*fe.degree + 1);
+        }
+        MPI_Bcast(&min, 1, MPI_DOUBLE, 0, mpi_communicator);
+
+        time_step = min;
+        std::cout << "Process " << Utilities::MPI::this_mpi_process(mpi_communicator) <<
+        " time step " << time_step << std::endl;
+}
+
 
 /**
  * @brief Prints stifness and the 4 lifting matrices of 0-th element of 0-th process
@@ -297,10 +341,11 @@ void advection2D::test()
         MPI_Barrier(MPI_COMM_WORLD);
         problem.assemble_system();
         MPI_Barrier(MPI_COMM_WORLD);
-        problem.output("partition");
         problem.print_matrices();
         problem.set_IC();
         problem.set_boundary_ids();
+        problem.output("partition");
+        problem.obtain_time_step(0.3);
 
         // double start_time = 0.0, end_time = 0.5, time_step = 0.005;
         // uint time_counter = 0;

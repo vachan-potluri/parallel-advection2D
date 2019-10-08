@@ -39,7 +39,8 @@
 #include <deal.II/lac/generic_linear_algebra.h>
 
 #include <fstream>
-#include <functional>
+#include <functional> // for arrat of functions
+#include <algorithm> // for std min
 
 // #include <deal.II/numerics/derivative_approximation.h> // for adaptive mesh
 
@@ -105,7 +106,8 @@ class advection2D
         void assemble_system();
         void set_IC();
         void set_boundary_ids();
-        void update(const double time_step);
+        void obtain_time_step(const double co);
+        void update();
         void print_matrices() const;
         void output(const std::string &filename) const;
 
@@ -132,6 +134,9 @@ class advection2D
         // stiffness and lifting matrices
         std::map<uint, FullMatrix<double>> stiff_mats;
         std::map<uint, std::array<FullMatrix<double>, GeometryInfo<2>::faces_per_cell> > lift_mats;
+
+        // current time step
+        double time_step;
 
         ConditionalOStream pcout; // parallel cout
 
