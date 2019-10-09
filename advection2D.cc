@@ -38,6 +38,9 @@ advection2D::advection2D(const uint order)
  * 1. Mesh is setup and stored in advection2D::triang. Partition is done internally
  * 2. advection2D::dof_handler is linked to advection2D::fe
  * 3. advection2D::g_solution and advection2D::g_rhs are set using locally owned and relevant dofs
+ * 
+ * @todo The <code>locally_relevant_dofs</code> are not all the dofs of ghost cell, but those which
+ * are interfacing between subdomains
  */
 void advection2D::setup_system()
 {
@@ -49,6 +52,8 @@ void advection2D::setup_system()
         dof_handler.distribute_dofs(fe);
         locally_owned_dofs = dof_handler.locally_owned_dofs();
         DoFTools::extract_locally_relevant_dofs(dof_handler, locally_relevant_dofs);
+        // locally_relevant_dofs = DoFTools::dof_indices_with_subdomain_association(dof_handler,
+        //         Utilities::MPI::this_mpi_process(mpi_communicator));
         DoFTools::map_dofs_to_support_points(mapping, dof_handler, dof_locations);
 
         g_solution.reinit(locally_owned_dofs, mpi_communicator);
@@ -69,14 +74,7 @@ void advection2D::setup_system()
  * @note The matrices for ghost cells are also computed and stored. This is required for update.
  * Also, all cell indexing for an individual mpi process is local. The cell's index and its
  * neighbors indices are locally defined.
- * 
- * @todo See if there is another approach. For example, if the numerical flux is stored as a global
- * vector, then every mpi process can update without having to know ghost cell matrices.
- * 
- * @remark Storing matrices for ghost cells too is the best approach. The issues with above approach
- * of storing and communicating numerical flux is that mapping from face dofs to cell dofs must be
- * done repeatedly and the sign of the numerical flux changes from cell to cell based on how it was
- * calculated.
+ * @note Write the algo for communication once finalised
  */
 void advection2D::assemble_system()
 {
@@ -98,7 +96,7 @@ void advection2D::assemble_system()
 
         for(auto &cell: dof_handler.active_cell_iterators()){
                 // skip if cell is not relevant to this mpi proc (owned + ghost)
-                if(!(cell->is_locally_owned() || cell->is_ghost())) continue;
+                if(!(cell->is_locally_owned())) continue;
 
                 // stiffness matrix
                 fe_values.reinit(cell);
@@ -266,133 +264,10 @@ void advection2D::obtain_time_step(const double co)
  * The face normal flux vector must be mapped to owner- and neighbor- local dofs for multplication
  * with lifting matrices. The mapped vectors will be of size <code>dof_per_cell</code>.
  * 
- * @note Here, ghosted copy of old solution is used for accessing ghost values.
- * @todo This function might have some serious algo issues
+ * @todo How to get away with min communication
  */
 void advection2D::update()
-{
-        // update old solution and make a ghost copy of it
-        gold_solution = g_solution;
-        gh_gold_solution = gold_solution;
-        g_rhs = 0.0;
-
-        uint i;
-        uint face_id, face_id_neighbor; // id of face wrt owner and neighbor
-        uint l_dof_id, l_dof_id_neighbor; // dof id (on a face) dof wrt owner and neighbor
-        // global dof ids of owner and neighbor
-        std::vector<uint> dof_ids(fe.dofs_per_cell), dof_ids_neighbor(fe.dofs_per_cell);
-        double phi, phi_neighbor; // owner and neighbor side values of phi
-        double cur_normal_flux; // normal flux at current dof
-        // the -ve of normal num flux vector of face wrt owner and neighbor
-        Vector<double> neg_normal_flux(fe.dofs_per_cell), neg_normal_flux_neighbor(fe.dofs_per_cell);
-        // rhs vectors for owner and neighbor
-        // contrib from rhs_neighbor will be added through compress operation
-        Vector<double> rhs(fe.dofs_per_cell), rhs_neighbor(fe.dofs_per_cell);
-        Point<2> dof_loc; // dof coordinates (on a face)
-        Tensor<1,2> normal; // face normal from away from owner at current dof
-        // fe face values initialised with Lobatto points to obtain normals at quad points
-        FEFaceValues<2> fe_face_values(fe, QGaussLobatto<1>(fe.degree+1), update_normal_vectors);
-
-        for(auto &cell: dof_handler.active_cell_iterators()){
-                // skip if not locally owned
-                if(!(cell->is_locally_owned())) continue;
-
-                // unlike rhs, rhs_neighbor is not affiliated to a single cell
-                rhs = 0.0;
-                cell->get_dof_indices(dof_ids);
-                for(face_id=0; face_id<GeometryInfo<2>::faces_per_cell; face_id++){
-                        if(cell->face(face_id)->at_boundary()){
-                                // this face is part of boundary, set phi_neighbor appropriately
-                                fe_face_values.reinit(cell, face_id);
-                                for(i=0; i<fe_face.dofs_per_face; i++){
-                                        l_dof_id = face_first_dof[face_id] +
-                                                i*face_dof_increment[face_id];
-                                        
-                                        normal = fe_face_values.normal_vector(i);
-                                        // owner and neighbor side dof locations will match
-                                        dof_loc = dof_locations[
-                                                dof_ids[ l_dof_id ]
-                                        ];
-
-                                        phi = gold_solution[
-                                                dof_ids[ l_dof_id ]
-                                        ];
-                                        // use array of functions (or func ptrs) to set BC
-                                        phi_neighbor =
-                                                bc_fns[cell->face(face_id)->boundary_id()](phi);
-
-                                        cur_normal_flux = rusanov_flux(phi, phi_neighbor, dof_loc,
-                                                normal);
-                                        neg_normal_flux(l_dof_id) = -cur_normal_flux;
-                                } // loop over face dofs
-
-                                // multiply normal flux with lift matrx and add to owners rhs
-                                lift_mats[cell->index()][face_id].vmult_add(
-                                        rhs,
-                                        neg_normal_flux
-                                );
-                        } // if boundary face
-                        else if(cell->neighbor_index(face_id) > cell->index()) continue;
-                        else{
-                                // internal face
-                                fe_face_values.reinit(cell, face_id);
-                                face_id_neighbor = cell->neighbor_of_neighbor(face_id);
-                                cell->neighbor(face_id)->get_dof_indices(dof_ids_neighbor);
-                                for(i=0; i<fe_face.dofs_per_face; i++){
-                                        l_dof_id = face_first_dof[face_id] +
-                                                i*face_dof_increment[face_id];
-                                        l_dof_id_neighbor = face_first_dof[face_id_neighbor] +
-                                                i*face_dof_increment[face_id_neighbor];
-                                        
-                                        normal = fe_face_values.normal_vector(i);
-                                        // owner and neighbor side dof locations will match
-                                        dof_loc = dof_locations[
-                                                dof_ids[ l_dof_id ]
-                                        ];
-
-                                        phi = gold_solution[
-                                                dof_ids[ l_dof_id ]
-                                        ];
-                                        phi_neighbor = gold_solution[
-                                                dof_ids_neighbor[ l_dof_id_neighbor ]
-                                        ];
-
-                                        cur_normal_flux = rusanov_flux(phi, phi_neighbor, dof_loc,
-                                                normal);
-                                        neg_normal_flux(l_dof_id) = -cur_normal_flux;
-                                        neg_normal_flux_neighbor(l_dof_id_neighbor) = cur_normal_flux;
-                                } // loop over face dofs
-
-                                // multiply normal flux with lift matrx and store in rhs
-                                // for both owner and neighbor
-                                lift_mats[cell->neighbor_index(face_id)][face_id_neighbor].vmult(
-                                        rhs_neighbor,
-                                        neg_normal_flux_neighbor
-                                );
-                                for(i=0; i<fe.dofs_per_cell; i++){
-                                        // accessing data of other process
-                                        g_rhs[dof_ids_neighbor[i]] = rhs_neighbor[i];
-                                }
-                                lift_mats[cell->index()][face_id].vmult_add(
-                                        rhs,
-                                        neg_normal_flux
-                                );
-                        } // if internal face
-                } // loop over faces
-                g_rhs.compress(VectorOperation::add);
-
-                // compute stiffness term
-                Vector<double> lold_solution(fe.dofs_per_cell); // old phi values of cell
-                for(i=0; i<fe.dofs_per_cell; i++) lold_solution[i] = gold_solution[dof_ids[i]];
-                stiff_mats[cell->index()].vmult_add(
-                        rhs,
-                        lold_solution
-                ); // rhs now has all owned face contribs and stiffness contrib
-                for(i=0; i<fe.dofs_per_cell; i++) g_rhs[dof_ids[i]] += rhs[i]; // non-ghost access
-                // set owners rhs using dof_ids
-                // set neighbors rhs and compress
-        } // loop over locally owned cells (computing rhs)
-}
+{}
 
 
 /**
