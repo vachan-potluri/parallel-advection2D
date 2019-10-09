@@ -88,6 +88,9 @@ namespace LA
  * different faces cannot be clubbed into a single lifting matrix because two numerical fluxes act
  * at every cell vertex. Accordingly, 4 different numerical flux vectors will multiply these 4
  * lifting matrices. See ME757 material "Notes14.pdf"
+ * 
+ * @todo With new strategy (double computation of numerical flux), rhs need not be global. Each
+ * process will update only the solution it owns.
  */
 
 class advection2D
