@@ -37,10 +37,14 @@ advection2D::advection2D(const uint order)
  * 
  * 1. Mesh is setup and stored in advection2D::triang. Partition is done internally
  * 2. advection2D::dof_handler is linked to advection2D::fe
- * 3. advection2D::g_solution and advection2D::g_rhs are set using locally owned and relevant dofs
+ * 3. advection2D::g_solution is set using locally owned dofs
  * 
- * @todo The <code>locally_relevant_dofs</code> are not all the dofs of ghost cell, but those which
- * are interfacing between subdomains
+ * @todo The required <code>locally_relevant_dofs</code> are not all the dofs of ghost cell, but
+ * those which lie on faces interfacing between subdomains. However,
+ * <code>DoFTools::extract_locally_relevant_dofs()</code> gives all the ghost cell dofs, while
+ * <code>DoFTools::dof_indices_with_subdomain_association()</code> returns the exact same set of
+ * indices as <code>locally_owned_dofs</code> because <code>FE_DGQ</code> element doesn't have dofs
+ * "living" on faces. For now, proceed with using all ghost dofs.
  */
 void advection2D::setup_system()
 {
@@ -54,11 +58,11 @@ void advection2D::setup_system()
         DoFTools::extract_locally_relevant_dofs(dof_handler, locally_relevant_dofs);
         // locally_relevant_dofs = DoFTools::dof_indices_with_subdomain_association(dof_handler,
         //         Utilities::MPI::this_mpi_process(mpi_communicator));
+        
         DoFTools::map_dofs_to_support_points(mapping, dof_handler, dof_locations);
 
         g_solution.reinit(locally_owned_dofs, mpi_communicator);
         gold_solution.reinit(locally_owned_dofs, mpi_communicator);
-        g_rhs.reinit(locally_owned_dofs, mpi_communicator);
         gh_gold_solution.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);
 
         MPI_Barrier(mpi_communicator);
@@ -97,6 +101,9 @@ void advection2D::assemble_system()
         for(auto &cell: dof_handler.active_cell_iterators()){
                 // skip if cell is not relevant to this mpi proc (owned + ghost)
                 if(!(cell->is_locally_owned())) continue;
+
+                // insert rhs vectors ony by one
+                l_rhs[cell->index()] = Vector<double>(fe.dofs_per_cell);
 
                 // stiffness matrix
                 fe_values.reinit(cell);
