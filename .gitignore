@@ -12,3 +12,4 @@ advection2D
 *.vtk*
 *.vtu*
 *.pvtu*
+result/*
