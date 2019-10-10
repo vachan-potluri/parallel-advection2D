@@ -272,6 +272,11 @@ void advection2D::obtain_time_step(const double co)
  * - For every cell:
  *   - Use rhs and time step to update solution
  * 
+ * @note This algorithm calculates the flux at subdomain interface twice so that communication need
+ * be done only once (in copying ghost values of old solution)
+ * @note Unlike in OpenFOAM, here when <code>FEFaceValues</code> reinitialised for a face, the
+ * normal always points away from the current face
+ * 
  * <code>cell->get_dof_indices()</code> will return the dof indices in the order shown in
  * https://www.dealii.org/current/doxygen/deal.II/classFE__DGQ.html. This fact is mentioned in
  * https://www.dealii.org/current/doxygen/deal.II/classDoFCellAccessor.html.
@@ -282,17 +287,24 @@ void advection2D::obtain_time_step(const double co)
  * The face normal flux vector must be mapped to owner- and neighbor- local dofs for multplication
  * with lifting matrices. The mapped vectors will be of size <code>dof_per_cell</code>.
  * 
+ * @precondition advection2D::obtain_time_step() has to be called before calling this fn
+ * 
  * @todo How to get away with min communication
  */
 void advection2D::update()
 {
+        // update solution
+        gold_solution = g_solution;
+        gh_gold_solution = gold_solution; // communication happens here
+
         // reset rhs
         for(auto &cur_rhs: l_rhs) cur_rhs.second = 0.0;
 
         // Prefixes "o_" and "n_" are for owner and neighbor
         // Stiffness term
         uint i;
-        std::vector<uint> o_dof_ids(fe.dofs_per_cell); // owner dof ids
+        // owner and neighbor cell dof ids
+        std::vector<uint> o_dof_ids(fe.dofs_per_cell), n_dof_ids(fe.dofs_per_cell);
         Vector<double> lold_solution(fe.dofs_per_cell); // local old solution
         for(auto &cell: dof_handler.active_cell_iterators()){
                 if(!(cell->is_locally_owned())) continue;
@@ -308,7 +320,104 @@ void advection2D::update()
         // Flux term
         // negative of normal num flux at a face, mapped to cell dofs, for owner and neighbor
         Vector<double> o_neg_num_flux(fe.dofs_per_cell), n_neg_num_flux(fe.dofs_per_cell);
-        uint face_id;
+        uint o_face_id, n_face_id; // face id of current face wrt owner and neighbor
+        uint lo_dof_id, ln_dof_id; // id of dof on a face wrt owner and neighbor
+        // fe face values for obtaining normal vector
+        FEFaceValues<2> fe_face_values(fe, QGaussLobatto<1>(fe.degree+1), update_normal_vectors);
+        Tensor<1,2> normal; // normal at dof on a face
+        Point<2> dof_loc; // location of dof at a face
+        double o_phi, n_phi; // owner and neighbor values of phi
+        double cur_normal_flux; // normal numerical flux at a dof on a face
+
+        for(auto &cell: dof_handler.active_cell_iterators()){
+                if(!(cell->is_locally_owned())) continue;
+
+                cell->get_dof_indices(o_dof_ids);
+                for(o_face_id=0; o_face_id < GeometryInfo<2>::faces_per_cell; o_face_id++){
+                        o_neg_num_flux = 0.0;
+                        n_neg_num_flux = 0.0;
+                        if(cell->face(o_face_id)->at_boundary()){
+                                // face at physical boundary
+                                fe_face_values.reinit(cell, o_face_id);
+                                for(i=0; i<fe_face.dofs_per_cell; i++){
+                                        lo_dof_id = face_first_dof[o_face_id] +
+                                                i*face_dof_increment[o_face_id];
+                                        normal = fe_face_values.normal_vector(i);
+                                        dof_loc = dof_locations[o_dof_ids[lo_dof_id]];
+                                        o_phi = gold_solution[o_dof_ids[lo_dof_id]];
+                                        n_phi = bc_fns[cell->face(o_face_id)->boundary_id()](o_phi);
+                                        cur_normal_flux = rusanov_flux(o_phi, n_phi, dof_loc,
+                                                normal);
+                                        o_neg_num_flux[lo_dof_id] = -cur_normal_flux;
+                                }
+                                lift_mats[cell->index()][o_face_id].vmult_add(
+                                        l_rhs[cell->index()],
+                                        o_neg_num_flux
+                                );
+                        }
+                        else if(cell->neighbor(o_face_id)->is_ghost()){
+                                fe_face_values.reinit(cell, o_face_id);
+                                cell->neighbor(o_face_id)->get_dof_indices(n_dof_ids);
+                                n_face_id = cell->neighbor_of_neighbor(o_face_id);
+                                for(i=0; i<fe_face.dofs_per_cell; i++){
+                                        lo_dof_id = face_first_dof[o_face_id] +
+                                                i*face_dof_increment[o_face_id];
+                                        ln_dof_id = face_first_dof[n_face_id] +
+                                                i*face_dof_increment[n_face_id];
+                                        normal = fe_face_values.normal_vector(i);
+                                        dof_loc = dof_locations[o_dof_ids[lo_dof_id]];
+                                        o_phi = gold_solution[o_dof_ids[lo_dof_id]];
+                                        n_phi = gh_gold_solution[n_dof_ids[ln_dof_id]];
+                                        cur_normal_flux = rusanov_flux(o_phi, n_phi, dof_loc,
+                                                normal);
+                                        o_neg_num_flux[lo_dof_id] = -cur_normal_flux;
+                                }
+                                lift_mats[cell->index()][o_face_id].vmult_add(
+                                        l_rhs[cell->index()],
+                                        o_neg_num_flux
+                                );
+                        }
+                        else if(cell->index() < cell->neighbor_index(o_face_id)){
+                                // interior face with lesser owner id
+                                fe_face_values.reinit(cell, o_face_id);
+                                cell->neighbor(o_face_id)->get_dof_indices(n_dof_ids);
+                                n_face_id = cell->neighbor_of_neighbor(o_face_id);
+                                for(i=0; i<fe_face.dofs_per_cell; i++){
+                                        lo_dof_id = face_first_dof[o_face_id] +
+                                                i*face_dof_increment[o_face_id];
+                                        ln_dof_id = face_first_dof[n_face_id] +
+                                                i*face_dof_increment[n_face_id];
+                                        normal = fe_face_values.normal_vector(i);
+                                        dof_loc = dof_locations[o_dof_ids[lo_dof_id]];
+                                        o_phi = gold_solution[o_dof_ids[lo_dof_id]];
+                                        n_phi = gh_gold_solution[n_dof_ids[ln_dof_id]];
+                                        cur_normal_flux = rusanov_flux(o_phi, n_phi, dof_loc,
+                                                normal);
+                                        o_neg_num_flux[lo_dof_id] = -cur_normal_flux;
+                                        n_neg_num_flux[ln_dof_id] = cur_normal_flux;
+                                }
+                                lift_mats[cell->index()][o_face_id].vmult_add(
+                                        l_rhs[cell->index()],
+                                        o_neg_num_flux
+                                );
+                                lift_mats[cell->neighbor_index(o_face_id)][n_face_id].vmult_add(
+                                        l_rhs[cell->neighbor_index(o_face_id)],
+                                        n_neg_num_flux
+                                );
+                        }
+                        else continue;
+                } // loop over faces
+        } // loop over locally owned cells (asssembling rhs)
+
+        // update solution
+        for(auto &cell: dof_handler.active_cell_iterators()){
+                if(!(cell->is_locally_owned())) continue;
+                cell->get_dof_indices(o_dof_ids);
+                for(i=0; i<fe.dofs_per_cell; i++){
+                        g_solution[o_dof_ids[i]] = gold_solution[o_dof_ids[i]] +
+                                l_rhs[cell->index()][i]*time_step;
+                }
+        }
 }
 
 
