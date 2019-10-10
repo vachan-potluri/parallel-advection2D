@@ -99,7 +99,7 @@ void advection2D::assemble_system()
         uint i, j, i_face, j_face, qid, face_id;
 
         for(auto &cell: dof_handler.active_cell_iterators()){
-                // skip if cell is not relevant to this mpi proc (owned + ghost)
+                // skip if cell is not owned by this mpi proc
                 if(!(cell->is_locally_owned())) continue;
 
                 // insert rhs vectors ony by one
@@ -249,17 +249,28 @@ void advection2D::obtain_time_step(const double co)
  * @brief Updates the solution taking advection2D::time_step as time step
  * 
  * Algorithm:
- * - For every cell:
+ * - For every owned cell:
+ *   - Use old solution vector to obtain a local old solution
+ *   - Use stiffness matrix to update rhs
  *   - For every face:
- *     - Get neighbor id
- *     - if neighbor id > cell id, continue
- *     - else:
- *       - Get face id wrt owner and neighbor (using neighbor_of_neighbor)
- *       - Get global dofs on owner and neighbor
- *       - Using face ids and global dofs of owner and neighbor, get global dofs on this face on
- * owner and neighbor side
- *       - Compute the numerical flux
- *       - Use lifting matrices to update owner and neighbor rhs
+ *     - If face is on physical boundary:
+ *       - Treat this cell as owner
+ *       - Compute numerical flux using BC
+ *       - Assign a num flux vector of size dofs_per_cell
+ *       - Use lifting matrix to update rhs of owner
+ *     - If face is on subdomain boundary:
+ *       - Treat this cell as owner
+ *       - Compute numerical flux using ghost old solution vector
+ *       - Assign a num flux vector of size dofs_per_cell
+ *       - Use lifting matrix to update rhs
+ *     - If face is internal face with cell id > neighbor id:
+ *       - Treat this cell as owner and neighbor as neighbor
+ *       - Compute numerical flux using owner and neighbor values
+ *       - Assign and owner and neighbor num flux vectors of size dofs_per_cell
+ *       - Use respective lifting matrices to update rhs
+ * 
+ * - For every cell:
+ *   - Use rhs and time step to update solution
  * 
  * <code>cell->get_dof_indices()</code> will return the dof indices in the order shown in
  * https://www.dealii.org/current/doxygen/deal.II/classFE__DGQ.html. This fact is mentioned in
@@ -274,7 +285,31 @@ void advection2D::obtain_time_step(const double co)
  * @todo How to get away with min communication
  */
 void advection2D::update()
-{}
+{
+        // reset rhs
+        for(auto &cur_rhs: l_rhs) cur_rhs.second = 0.0;
+
+        // Prefixes "o_" and "n_" are for owner and neighbor
+        // Stiffness term
+        uint i;
+        std::vector<uint> o_dof_ids(fe.dofs_per_cell); // owner dof ids
+        Vector<double> lold_solution(fe.dofs_per_cell); // local old solution
+        for(auto &cell: dof_handler.active_cell_iterators()){
+                if(!(cell->is_locally_owned())) continue;
+
+                cell->get_dof_indices(o_dof_ids);
+                for(i=0; i<fe.dofs_per_cell; i++) lold_solution[i] = gold_solution[o_dof_ids[i]];
+                stiff_mats[cell->index()].vmult_add(
+                        l_rhs[cell->index()],
+                        lold_solution
+                );
+        } // loop over locally owned cells
+
+        // Flux term
+        // negative of normal num flux at a face, mapped to cell dofs, for owner and neighbor
+        Vector<double> o_neg_num_flux(fe.dofs_per_cell), n_neg_num_flux(fe.dofs_per_cell);
+        uint face_id;
+}
 
 
 /**
@@ -377,6 +412,7 @@ void advection2D::test()
         problem.set_boundary_ids();
         problem.output("partition");
         problem.obtain_time_step(0.3);
+        problem.update();
 
         // double start_time = 0.0, end_time = 0.5, time_step = 0.005;
         // uint time_counter = 0;
