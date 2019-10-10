@@ -209,7 +209,7 @@ void advection2D::set_boundary_ids()
  * \Delta t = \text{Co}\frac{1}{2N+1}\min\left[ \frac{r}{u}, \frac{r}{v} \right]
  * @f]
  */
-void advection2D::obtain_time_step(const double co)
+double advection2D::obtain_time_step(const double co)
 {
         double radius,  // radius of cell
                 proc_min=1e6, // (factor of) time step for this mpi process
@@ -243,6 +243,8 @@ void advection2D::obtain_time_step(const double co)
         time_step = min;
         std::cout << "Process " << Utilities::MPI::this_mpi_process(mpi_communicator) <<
         " time step " << time_step << std::endl;
+
+        return time_step;
 }
 
 /**
@@ -464,11 +466,15 @@ void advection2D::print_matrices() const
 }
 
 /**
- * @brief Outputs the global solution in pvtu format taking the filename as argument
+ * @brief Outputs the global solution in pvtu format taking the filename and counter as arguments
+ * 
+ * The files produced are
+ * - <filename>_<process_rank>.vtu.<cnt>
+ * - <filename>.pvtu.<cnt>
  * 
  * @precondition @p filename must not have extension. Checks in this regard are not done
  */
-void advection2D::output(const std::string &filename) const
+void advection2D::output(const std::string &filename, const uint cnt) const
 {
         DataOut<2> data_out;
         data_out.attach_dof_handler(dof_handler);
@@ -484,7 +490,8 @@ void advection2D::output(const std::string &filename) const
 
         // Inidividual process solution files
         std::string mod_filename(filename);
-        mod_filename += "_" + Utilities::int_to_string(triang.locally_owned_subdomain(), 2) + ".vtu";
+        mod_filename += "_" + Utilities::int_to_string(triang.locally_owned_subdomain(), 2) +
+                ".vtu." + std::to_string(cnt);
         std::ofstream ofile(mod_filename);
         data_out.write_vtu(ofile);
 
@@ -493,9 +500,9 @@ void advection2D::output(const std::string &filename) const
                 std::vector<std::string> filenames;
                 for(uint i=0; i<Utilities::MPI::n_mpi_processes(mpi_communicator); i++){
                         filenames.emplace_back(filename + "_" +
-                                Utilities::int_to_string(i, 2) + ".vtu");
+                                Utilities::int_to_string(i, 2) + ".vtu." + std::to_string(cnt));
                 }
-                std::ofstream master(filename + ".pvtu");
+                std::ofstream master(filename + ".pvtu." + std::to_string(cnt));
                 data_out.write_pvtu_record(master, filenames);
         }
 }
@@ -523,15 +530,16 @@ void advection2D::test()
         problem.obtain_time_step(0.3);
         problem.update();
 
-        // double start_time = 0.0, end_time = 0.5, time_step = 0.005;
-        // uint time_counter = 0;
-        // std::string base_filename = "output.vtk";
-        // problem.output(base_filename + ".0"); // initial condition
-        // for(double cur_time = start_time; cur_time<end_time; cur_time+=time_step){
-        //         deallog << "Step " << time_counter << " time " << cur_time << std::endl;
-        //         problem.update(time_step);
-        //         time_counter++;
-        //         problem.output(base_filename + "." + std::to_string(time_counter));
-        // }
+        double start_time = 0.0, end_time = 0.5, time_step = 0.005;
+        uint time_counter = 0;
+        std::string base_filename = "output";
+        problem.output(base_filename, 0); // initial condition
+        for(double cur_time = start_time; cur_time<end_time; cur_time+=time_step){
+                deallog << "Step " << time_counter << " time " << cur_time << std::endl;
+                time_step = problem.obtain_time_step(0.3);
+                problem.update();
+                time_counter++;
+                problem.output(base_filename, time_counter);
+        }
 }
 #endif
