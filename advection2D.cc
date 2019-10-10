@@ -241,9 +241,6 @@ double advection2D::obtain_time_step(const double co)
         MPI_Bcast(&min, 1, MPI_DOUBLE, 0, mpi_communicator);
 
         time_step = min;
-        std::cout << "Process " << Utilities::MPI::this_mpi_process(mpi_communicator) <<
-        " time step " << time_step << std::endl;
-
         return time_step;
 }
 
@@ -296,7 +293,8 @@ double advection2D::obtain_time_step(const double co)
 void advection2D::update()
 {
         // update solution
-        gold_solution = g_solution;
+        for(auto i: locally_owned_dofs) gold_solution[i] = g_solution[i];
+        gold_solution.compress(VectorOperation::insert); // for synchronisation
         gh_gold_solution = gold_solution; // communication happens here
 
         // reset rhs
@@ -420,6 +418,8 @@ void advection2D::update()
                                 l_rhs[cell->index()][i]*time_step;
                 }
         }
+
+        MPI_Barrier(mpi_communicator);
 }
 
 
@@ -526,16 +526,16 @@ void advection2D::test()
         problem.print_matrices();
         problem.set_IC();
         problem.set_boundary_ids();
-        problem.output("partition");
-        problem.obtain_time_step(0.3);
-        problem.update();
+        problem.output("partition", 0);
 
-        double start_time = 0.0, end_time = 0.5, time_step = 0.005;
+        ConditionalOStream pcout(std::cout, (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD)==0));
+
+        double start_time = 0.0, end_time = 0.5, time_step;
         uint time_counter = 0;
         std::string base_filename = "output";
         problem.output(base_filename, 0); // initial condition
         for(double cur_time = start_time; cur_time<end_time; cur_time+=time_step){
-                deallog << "Step " << time_counter << " time " << cur_time << std::endl;
+                pcout << "Step " << time_counter << " time " << cur_time << std::endl;
                 time_step = problem.obtain_time_step(0.3);
                 problem.update();
                 time_counter++;
