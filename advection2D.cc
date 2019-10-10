@@ -339,7 +339,7 @@ void advection2D::update()
                         if(cell->face(o_face_id)->at_boundary()){
                                 // face at physical boundary
                                 fe_face_values.reinit(cell, o_face_id);
-                                for(i=0; i<fe_face.dofs_per_cell; i++){
+                                for(i=0; i<fe_face.dofs_per_face; i++){
                                         lo_dof_id = face_first_dof[o_face_id] +
                                                 i*face_dof_increment[o_face_id];
                                         normal = fe_face_values.normal_vector(i);
@@ -359,7 +359,7 @@ void advection2D::update()
                                 fe_face_values.reinit(cell, o_face_id);
                                 cell->neighbor(o_face_id)->get_dof_indices(n_dof_ids);
                                 n_face_id = cell->neighbor_of_neighbor(o_face_id);
-                                for(i=0; i<fe_face.dofs_per_cell; i++){
+                                for(i=0; i<fe_face.dofs_per_face; i++){
                                         lo_dof_id = face_first_dof[o_face_id] +
                                                 i*face_dof_increment[o_face_id];
                                         ln_dof_id = face_first_dof[n_face_id] +
@@ -382,7 +382,7 @@ void advection2D::update()
                                 fe_face_values.reinit(cell, o_face_id);
                                 cell->neighbor(o_face_id)->get_dof_indices(n_dof_ids);
                                 n_face_id = cell->neighbor_of_neighbor(o_face_id);
-                                for(i=0; i<fe_face.dofs_per_cell; i++){
+                                for(i=0; i<fe_face.dofs_per_face; i++){
                                         lo_dof_id = face_first_dof[o_face_id] +
                                                 i*face_dof_increment[o_face_id];
                                         ln_dof_id = face_first_dof[n_face_id] +
