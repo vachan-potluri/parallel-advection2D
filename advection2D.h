@@ -109,7 +109,8 @@ class advection2D
         double obtain_time_step(const double co);
         void update();
         void print_matrices() const;
-        void output(const std::string &filename, const uint cnt) const;
+        void output(const std::string &filename, const uint cnt,
+                const std::string op_dir="result") const;
 
         // class variables
         MPI_Comm mpi_communicator;

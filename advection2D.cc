@@ -466,7 +466,8 @@ void advection2D::print_matrices() const
 }
 
 /**
- * @brief Outputs the global solution in pvtu format taking the filename and counter as arguments
+ * @brief Outputs the global solution in pvtu format taking the filename and counter as arguments.
+ * Takes output directory as an optional argument (defaults to "result")
  * 
  * The files produced are
  * - <filename>_<process_rank>.vtu.<cnt>
@@ -474,7 +475,8 @@ void advection2D::print_matrices() const
  * 
  * @precondition @p filename must not have extension. Checks in this regard are not done
  */
-void advection2D::output(const std::string &filename, const uint cnt) const
+void advection2D::output(const std::string &filename, const uint cnt,
+        const std::string op_dir) const
 {
         DataOut<2> data_out;
         data_out.attach_dof_handler(dof_handler);
@@ -489,8 +491,8 @@ void advection2D::output(const std::string &filename, const uint cnt) const
         data_out.build_patches();
 
         // Inidividual process solution files
-        std::string mod_filename(filename);
-        mod_filename += "_" + Utilities::int_to_string(triang.locally_owned_subdomain(), 2) +
+        std::string mod_filename = op_dir + "/" + filename + "_" +
+                Utilities::int_to_string(triang.locally_owned_subdomain(), 2) +
                 ".vtu." + std::to_string(cnt);
         std::ofstream ofile(mod_filename);
         data_out.write_vtu(ofile);
@@ -499,10 +501,10 @@ void advection2D::output(const std::string &filename, const uint cnt) const
         if(Utilities::MPI::this_mpi_process(mpi_communicator) == 0){
                 std::vector<std::string> filenames;
                 for(uint i=0; i<Utilities::MPI::n_mpi_processes(mpi_communicator); i++){
-                        filenames.emplace_back(filename + "_" +
+                        filenames.emplace_back(op_dir + "/" + filename + "_" +
                                 Utilities::int_to_string(i, 2) + ".vtu." + std::to_string(cnt));
                 }
-                std::ofstream master(filename + ".pvtu." + std::to_string(cnt));
+                std::ofstream master(op_dir + "/" + filename + ".pvtu." + std::to_string(cnt));
                 data_out.write_pvtu_record(master, filenames);
         }
 }
@@ -526,7 +528,7 @@ void advection2D::test()
         problem.print_matrices();
         problem.set_IC();
         problem.set_boundary_ids();
-        problem.output("partition", 0);
+        // problem.output("partition", 0);
 
         ConditionalOStream pcout(std::cout, (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD)==0));
 
