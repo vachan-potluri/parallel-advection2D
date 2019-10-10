@@ -106,10 +106,10 @@ class advection2D
         void assemble_system();
         void set_IC();
         void set_boundary_ids();
-        void obtain_time_step(const double co);
+        double obtain_time_step(const double co);
         void update();
         void print_matrices() const;
-        void output(const std::string &filename) const;
+        void output(const std::string &filename, const uint cnt) const;
 
         // class variables
         MPI_Comm mpi_communicator;
